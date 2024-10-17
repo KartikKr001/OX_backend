@@ -1,10 +1,13 @@
-require('dotenv').config()
 const { createServer } = require("http");
 const { Server } = require("socket.io");
+require('dotenv').config();
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
-  cors: "https://tic-tac-toe-sand-omega.vercel.app/",
+  cors: {
+    origin: "https://tic-tac-toe-sand-omega.vercel.app",
+    methods: ["GET", "POST"],
+  },
 });
 
 const allUsers = {};
@@ -14,7 +17,10 @@ io.on("connection", (socket) => {
   allUsers[socket.id] = {
     socket: socket,
     online: true,
+    playing: false, // Initialize playing state
   };
+
+  console.log(`User connected: ${socket.id}`);
 
   socket.on("request_to_play", (data) => {
     const currentUser = allUsers[socket.id];
@@ -57,6 +63,9 @@ io.on("connection", (socket) => {
           ...data,
         });
       });
+
+      currentUser.playing = true; // Set playing state
+      opponentPlayer.playing = true; // Set playing state
     } else {
       currentUser.socket.emit("OpponentNotFound");
     }
@@ -64,25 +73,28 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", function () {
     const currentUser = allUsers[socket.id];
-    currentUser.online = false;
-    currentUser.playing = false;
+    if (currentUser) {
+      currentUser.online = false;
+      currentUser.playing = false;
 
-    for (let index = 0; index < allRooms.length; index++) {
-      const { player1, player2 } = allRooms[index];
+      for (let index = 0; index < allRooms.length; index++) {
+        const { player1, player2 } = allRooms[index];
 
-      if (player1.socket.id === socket.id) {
-        player2.socket.emit("opponentLeftMatch");
-        break;
+        if (player1.socket.id === socket.id) {
+          player2.socket.emit("opponentLeftMatch");
+          break;
+        }
+
+        if (player2.socket.id === socket.id) {
+          player1.socket.emit("opponentLeftMatch");
+          break;
+        }
       }
-
-      if (player2.socket.id === socket.id) {
-        player1.socket.emit("opponentLeftMatch");
-        break;
-      }
+      console.log(`User disconnected: ${socket.id}`);
     }
   });
 });
 
-httpServer.listen(process.env.PORT,()=>{
+httpServer.listen(process.env.PORT, () => {
   console.log(`Server is running on port ${process.env.PORT}`);
 });
